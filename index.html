@@ -330,6 +330,28 @@
     }
     .dot.paused { background: #f97316; }
     .dot.stopped { background: #4b5563; }
+
+    /* View buttons as a segmented group */
+    .view-toggle-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .view-toggle {
+      font-size: 11px;
+      padding: 5px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border-subtle);
+      background: rgba(15, 23, 42, 0.9);
+      color: var(--text-muted);
+    }
+
+    .view-toggle.active {
+      background: var(--accent-soft);
+      border-color: var(--accent-strong);
+      color: var(--accent-strong);
+    }
   </style>
 </head>
 
@@ -415,14 +437,16 @@
           <span class="label-pill">Global</span>
         </div>
         <div class="card-body">
-          <button id="toggleTheme">
-            🎨 <span id="toggleThemeText">Satellite map</span>
-          </button>
+          <div class="view-toggle-group">
+            <button id="btnViewDark" class="view-toggle active">🌑 Dark</button>
+            <button id="btnViewSatellite" class="view-toggle">🛰 Satellite</button>
+            <button id="btnViewUnlabeled" class="view-toggle">🗺 Dark unlabeled</button>
+          </div>
           <span class="subtext" style="flex:1 1 100%;">Applies to both 2D &amp; 3D modes.</span>
         </div>
       </div>
 
-      <!-- Trails card (separate box) -->
+      <!-- Trails card -->
       <div class="card">
         <div class="card-header">
           <span>Trails</span>
@@ -493,12 +517,20 @@
   <script>
     mapboxgl.accessToken = 'pk.eyJ1IjoiZGV2aWxiYWRnZXIxMDEiLCJhIjoiY21rMGF0YzRpMGl1NDNmc2lpMHFrcWwxcCJ9.yARs0JW8w1TOCFXRT-UGoQ';
 
+    // Themes
+    const THEME = {
+      DARK: 'dark',
+      SATELLITE: 'satellite',
+      UNLABELED: 'unlabeled'
+    };
+
     // Default theme: dark
-    let currentTheme = 'dark';
+    let currentTheme = THEME.DARK;
+    let currentBaseStyleUrl = 'mapbox://styles/mapbox/dark-v11';
 
     const map = new mapboxgl.Map({
       container: 'map',
-      style: 'mapbox://styles/mapbox/dark-v11',
+      style: currentBaseStyleUrl,
       center: [-2.5, 53.0],
       zoom: 6,
       pitch: 60,
@@ -582,15 +614,15 @@
 
     const MIN_POINT_SPACING_NM = 0.2;
     const DESPAWN_FRAMES = 250;
-    const TRAIL_FADE_STEP_NM_GS0 = 0.01;   // slow fade for GS=0 timeouts
-    const TRAIL_FADE_STEP_NM_TIMEOUT = 0.01; // default fade for other despawns
-    const STOP_FRAMES_BEFORE_FADE = 250;  // GS=0 must persist this many frames
+    const TRAIL_FADE_STEP_NM_GS0 = 0.01;
+    const TRAIL_FADE_STEP_NM_TIMEOUT = 0.01;
+    const STOP_FRAMES_BEFORE_FADE = 250;
 
     let maxTrailHistoryNm = 30;
     let trailsVisible = true;
     let playbackSpeed = 4.0;
     let is3DView = true;    // 3D mode by default
-    let controlsVisible = true; // "pinned" state
+    let controlsVisible = true;
     let keepAllTrails = false;
     let hideIcons = false;
 
@@ -611,6 +643,48 @@
     const ICON_BASE_PATH = './icons/aircraft';
     const ICON_GENERIC_ID = 'aircraft-a320';
     const ICON_GENERIC_FILE = 'a320.svg';
+
+    // Simple replay state constants
+    const REPLAY_STATE = {
+      IDLE: 'idle',
+      PLAYING: 'playing',
+      PAUSED: 'paused'
+    };
+
+    // Cached GeoJSON references (centralised updates)
+    let lastAircraftGeoJSON = null;
+    let lastTrailsGeoJSON = null;
+
+    function getAircraftGeoJSON() {
+      return {
+        type: 'FeatureCollection',
+        features: Object.values(aircraftFeatures)
+      };
+    }
+
+    function getTrailsGeoJSON() {
+      return {
+        type: 'FeatureCollection',
+        features: Object.values(trailFeatures)
+      };
+    }
+
+    function updateMapSources() {
+      const aircraftSource = map.getSource('aircraft');
+      const trailsSource = map.getSource('trails');
+
+      if (aircraftSource) {
+        const data = getAircraftGeoJSON();
+        aircraftSource.setData(data);
+        lastAircraftGeoJSON = data;
+      }
+
+      if (trailsSource) {
+        const data = getTrailsGeoJSON();
+        trailsSource.setData(data);
+        lastTrailsGeoJSON = data;
+      }
+    }
 
     function loadPlaneIcon() {
       if (map.hasImage(ICON_GENERIC_ID)) return;
@@ -670,8 +744,6 @@
     const toggleTrailsText = document.getElementById('toggleTrailsText');
     const toggle3DViewBtn = document.getElementById('toggle3DView');
     const toggle3DViewText = document.getElementById('toggle3DViewText');
-    const toggleThemeBtn = document.getElementById('toggleTheme');
-    const toggleThemeText = document.getElementById('toggleThemeText');
     const keepAllTrailsBtn = document.getElementById('keepAllTrailsBtn');
     const keepAllTrailsText = document.getElementById('keepAllTrailsText');
     const toggleHideIconsBtn = document.getElementById('toggleHideIcons');
@@ -689,22 +761,28 @@
     const trailColorInput = document.getElementById('trailColor');
     const timelineRange = document.getElementById('timelineRange');
     const timelineLabel = document.getElementById('timelineLabel');
+    const btnViewDark = document.getElementById('btnViewDark');
+    const btnViewSatellite = document.getElementById('btnViewSatellite');
+    const btnViewUnlabeled = document.getElementById('btnViewUnlabeled');
     let isScrubbing = false;
 
     function setStatus(state, text) {
-      // Only update in-toolbar indicators now (no separate status pill)
       playPauseDot.classList.remove('paused', 'stopped');
 
-      if (state === 'idle') {
-        playPauseDot.classList.add('stopped');
-        replayStatusLabel.textContent = 'Idle';
-      } else if (state === 'playing') {
-        replayStatusLabel.textContent = 'Playing';
-      } else if (state === 'paused') {
-        playPauseDot.classList.add('paused');
-        replayStatusLabel.textContent = 'Paused';
+      switch (state) {
+        case REPLAY_STATE.IDLE:
+          playPauseDot.classList.add('stopped');
+          replayStatusLabel.textContent = 'Idle';
+          break;
+        case REPLAY_STATE.PLAYING:
+          replayStatusLabel.textContent = 'Playing';
+          break;
+        case REPLAY_STATE.PAUSED:
+          playPauseDot.classList.add('paused');
+          replayStatusLabel.textContent = 'Paused';
+          break;
       }
-      // "text" is kept for future extension/logging, but not displayed.
+      // text kept for optional future UX/logging
     }
 
     function ftToMeters(ft) {
@@ -772,10 +850,7 @@
       if (hasAircraft && !map.getSource('aircraft')) {
         map.addSource('aircraft', {
           type: 'geojson',
-          data: {
-            type: 'FeatureCollection',
-            features: Object.values(aircraftFeatures)
-          }
+          data: getAircraftGeoJSON()
         });
 
         map.addLayer({
@@ -797,10 +872,7 @@
         map.addSource('trails', {
           type: 'geojson',
           lineMetrics: true,
-          data: {
-            type: 'FeatureCollection',
-            features: Object.values(trailFeatures)
-          }
+          data: getTrailsGeoJSON()
         });
 
         map.addLayer({
@@ -1176,7 +1248,7 @@
 
         aircraftLastSeen[callsign] = replayIndex;
 
-        // Update 3D discrete only if 3D view enabled (perf)
+        // Update 3D discrete only if 3D view enabled
         if (is3DView) {
           updateAircraftObjectForEvent(ev);
           updateTrailLineForCallsign(callsign);
@@ -1219,7 +1291,7 @@
         }
       }
 
-      // Fade trails from the back (speed depends on fadeReason)
+      // Fade trails from the back
       if (!keepAllTrails) {
         for (const cs in trailFeatures) {
           const trail = trailFeatures[cs];
@@ -1279,20 +1351,7 @@
       }
 
       ensureReplayLayers();
-      const aircraftSource = map.getSource('aircraft');
-      if (aircraftSource) {
-        aircraftSource.setData({
-          type: 'FeatureCollection',
-          features: Object.values(aircraftFeatures)
-        });
-      }
-      const trailsSource = map.getSource('trails');
-      if (trailsSource) {
-        trailsSource.setData({
-          type: 'FeatureCollection',
-          features: Object.values(trailFeatures)
-        });
-      }
+      updateMapSources();
       applyAltitudeFilter();
       updateTimelineUI();
       rebuildAll3DGeometry();
@@ -1304,7 +1363,9 @@
     function add3DBuildings() {
       if (map.getLayer('3d-buildings')) return;
 
-      const layers = map.getStyle().layers;
+      const style = map.getStyle();
+      if (!style || !style.layers) return;
+      const layers = style.layers;
       let labelLayerId;
       for (let i = 0; i < layers.length; i++) {
         const layer = layers[i];
@@ -1313,6 +1374,8 @@
           break;
         }
       }
+
+      if (!labelLayerId) return;
 
       map.addLayer(
         {
@@ -1337,6 +1400,38 @@
       );
     }
 
+    // Hide labels (for dark unlabeled)
+    function hideAllLabels() {
+      const style = map.getStyle();
+      if (!style || !style.layers) return;
+
+      style.layers.forEach(layer => {
+        if (layer.type === 'symbol' && layer.layout && layer.layout['text-field']) {
+          try {
+            map.setLayoutProperty(layer.id, 'visibility', 'none');
+          } catch (e) {
+            // ignore
+          }
+        }
+      });
+    }
+
+    // Show labels again (for normal dark / satellite)
+    function showAllLabels() {
+      const style = map.getStyle();
+      if (!style || !style.layers) return;
+
+      style.layers.forEach(layer => {
+        if (layer.type === 'symbol' && layer.layout && layer.layout['text-field']) {
+          try {
+            map.setLayoutProperty(layer.id, 'visibility', 'visible');
+          } catch (e) {
+            // ignore
+          }
+        }
+      });
+    }
+
     map.on('style.load', () => {
       // Sky for nicer tilted look
       if (!map.getLayer('sky')) {
@@ -1350,22 +1445,7 @@
       add3DBuildings();
       loadPlaneIcon();
       ensureReplayLayers();
-
-      const aircraftSource = map.getSource('aircraft');
-      if (aircraftSource) {
-        aircraftSource.setData({
-          type: 'FeatureCollection',
-          features: Object.values(aircraftFeatures)
-        });
-      }
-
-      const trailsSource = map.getSource('trails');
-      if (trailsSource) {
-        trailsSource.setData({
-          type: 'FeatureCollection',
-          features: Object.values(trailFeatures)
-        });
-      }
+      updateMapSources();
 
       applyAltitudeFilter();
       updateTrailColor();
@@ -1378,8 +1458,15 @@
       rebuildAll3DGeometry();
       update3DVisibility();
 
+      // Apply label visibility based on current theme
+      if (currentTheme === THEME.UNLABELED) {
+        hideAllLabels();
+      } else {
+        showAllLabels();
+      }
+
       if (!mapInitializedOnce) {
-        setStatus('idle', 'Ready. Load an OBS log to begin.');
+        setStatus(REPLAY_STATE.IDLE, 'Ready. Load an OBS log to begin.');
         mapInitializedOnce = true;
       }
 
@@ -1513,7 +1600,7 @@
 
         animationRunning = true;
         isPaused = false;
-        setStatus('playing', 'Replaying radar data…');
+        setStatus(REPLAY_STATE.PLAYING, 'Replaying radar data…');
         requestAnimationFrame(animate);
       };
       reader.readAsText(file);
@@ -1521,7 +1608,7 @@
 
     function animate() {
       if (!animationRunning || replayIndex >= maxFrames) {
-        setStatus('idle', 'Replay finished. Load another file to play again.');
+        setStatus(REPLAY_STATE.IDLE, 'Replay finished. Load another file to play again.');
         animationRunning = false;
         return;
       }
@@ -1573,7 +1660,6 @@
         }
 
         if (is3DView) {
-          // Smooth 3D aircraft + trail only while 3D is active (perf)
           const evFor3D = {
             callsign: cs,
             lat: newLat,
@@ -1591,27 +1677,9 @@
       const now = performance.now();
       if (needsRender && now - lastRenderTime >= RENDER_INTERVAL_MS) {
         ensureReplayLayers();
-
-        const aircraftSource = map.getSource('aircraft');
-        if (aircraftSource) {
-          aircraftSource.setData({
-            type: 'FeatureCollection',
-            features: Object.values(aircraftFeatures)
-          });
-        }
-
-        const trailsSource = map.getSource('trails');
-        if (trailsSource) {
-          trailsSource.setData({
-            type: 'FeatureCollection',
-            features: Object.values(trailFeatures)
-          });
-        }
-
+        updateMapSources();
         applyAltitudeFilter();
         updateTimelineUI();
-        update3DVisibility();
-        applyHideIconsVisualState();
 
         lastRenderTime = now;
         needsRender = false;
@@ -1619,6 +1687,42 @@
 
       requestAnimationFrame(animate);
     }
+
+    // === Theme switching ===
+    function updateThemeButtons() {
+      btnViewDark.classList.toggle('active', currentTheme === THEME.DARK);
+      btnViewSatellite.classList.toggle('active', currentTheme === THEME.SATELLITE);
+      btnViewUnlabeled.classList.toggle('active', currentTheme === THEME.UNLABELED);
+    }
+
+    function setTheme(theme) {
+      if (currentTheme === theme) return;
+
+      currentTheme = theme;
+      updateThemeButtons();
+
+      const targetBaseStyleUrl =
+        currentTheme === THEME.SATELLITE
+          ? 'mapbox://styles/mapbox/satellite-v9'
+          : 'mapbox://styles/mapbox/dark-v11'; // DARK and UNLABELED share dark style
+
+      if (targetBaseStyleUrl !== currentBaseStyleUrl) {
+        currentBaseStyleUrl = targetBaseStyleUrl;
+        map.setStyle(targetBaseStyleUrl);
+        // labels handled on style.load
+      } else {
+        // same base style; flip labels in-place
+        if (currentTheme === THEME.UNLABELED) {
+          hideAllLabels();
+        } else {
+          showAllLabels();
+        }
+      }
+    }
+
+    btnViewDark.addEventListener('click', () => setTheme(THEME.DARK));
+    btnViewSatellite.addEventListener('click', () => setTheme(THEME.SATELLITE));
+    btnViewUnlabeled.addEventListener('click', () => setTheme(THEME.UNLABELED));
 
     // === UI handlers ===
 
@@ -1635,8 +1739,8 @@
       keepAllTrails = !keepAllTrails;
       updateKeepAllTrailsButton();
       const state = animationRunning
-        ? (isPaused ? 'paused' : 'playing')
-        : 'idle';
+        ? (isPaused ? REPLAY_STATE.PAUSED : REPLAY_STATE.PLAYING)
+        : REPLAY_STATE.IDLE;
       setStatus(
         state,
         keepAllTrails ? 'All trails will be kept for the full replay.' :
@@ -1655,8 +1759,8 @@
       if (!isNaN(v) && v > 0) {
         maxTrailHistoryNm = v;
         const state = animationRunning
-          ? (isPaused ? 'paused' : 'playing')
-          : 'idle';
+          ? (isPaused ? REPLAY_STATE.PAUSED : REPLAY_STATE.PLAYING)
+          : REPLAY_STATE.IDLE;
         setStatus(state, `Trail length set to ${maxTrailHistoryNm} NM`);
       }
     });
@@ -1683,8 +1787,8 @@
       applyAltitudeFilter();
       update3DVisibility();
       const state = animationRunning
-        ? (isPaused ? 'paused' : 'playing')
-        : 'idle';
+        ? (isPaused ? REPLAY_STATE.PAUSED : REPLAY_STATE.PLAYING)
+        : REPLAY_STATE.IDLE;
       setStatus(state, `Replay filtered: ${minAlt}–${maxAlt} ft`);
     });
 
@@ -1696,9 +1800,9 @@
       playPauseText.textContent = isPaused ? 'Play' : 'Pause';
 
       if (isPaused) {
-        setStatus('paused', 'Replay paused.');
+        setStatus(REPLAY_STATE.PAUSED, 'Replay paused.');
       } else {
-        setStatus('playing', 'Replaying radar data…');
+        setStatus(REPLAY_STATE.PLAYING, 'Replaying radar data…');
       }
     });
 
@@ -1737,21 +1841,6 @@
       update3DVisibility();
     });
 
-    function updateThemeButtonText() {
-      toggleThemeText.textContent = currentTheme === 'satellite' ? 'Dark map' : 'Satellite map';
-    }
-
-    toggleThemeBtn.addEventListener('click', () => {
-      currentTheme = currentTheme === 'satellite' ? 'dark' : 'satellite';
-      updateThemeButtonText();
-
-      const styleUrl = currentTheme === 'satellite'
-        ? 'mapbox://styles/mapbox/satellite-v9'
-        : 'mapbox://styles/mapbox/dark-v11';
-
-      map.setStyle(styleUrl);
-    });
-
     function updateControlsToggle() {
       if (controlsVisible) {
         toolbar.style.display = 'flex';
@@ -1769,15 +1858,13 @@
       updateControlsToggle();
     });
 
-    // (Hover-to-show behaviour removed as requested.)
-
-    // Lightweight scrubbing: only jump on release
+    // Timeline scrubbing
     timelineRange.addEventListener('input', () => {
       if (timelineRange.disabled || !maxFrames) return;
       isScrubbing = true;
       isPaused = true;
       playPauseText.textContent = 'Play';
-      setStatus('paused', 'Scrubbing timeline…');
+      setStatus(REPLAY_STATE.PAUSED, 'Scrubbing timeline…');
       const idx = parseInt(timelineRange.value, 10) || 0;
       timelineLabel.textContent = `${idx} / ${maxFrames ? maxFrames - 1 : 0}`;
     });
@@ -1790,11 +1877,7 @@
     });
 
     // Initial UI state
-    function initThemeLabel() {
-      toggleThemeText.textContent = 'Satellite map';
-    }
-
-    initThemeLabel();
+    updateThemeButtons();
     updateControlsToggle();
     updateKeepAllTrailsButton();
     updateTimelineUI();
