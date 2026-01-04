@@ -12,18 +12,17 @@
 
   <style>
     :root {
-      --bg-dark: #050510;
-      --bg-panel: rgba(15, 15, 30, 0.9);
+      --bg-dark: #020617;
+      --bg-panel: rgba(15, 23, 42, 0.88);
       --accent: #4f46e5;
-      --accent-soft: rgba(79, 70, 229, 0.15);
-      --accent-strong: #818cf8;
+      --accent-soft: rgba(79, 70, 229, 0.16);
+      --accent-strong: #a5b4fc;
       --text-main: #f9fafb;
       --text-muted: #9ca3af;
-      --border-subtle: rgba(148, 163, 184, 0.3);
-      --danger: #f97373;
+      --border-subtle: rgba(148, 163, 184, 0.4);
       --radius-lg: 999px;
       --radius-md: 14px;
-      --shadow-soft: 0 18px 45px rgba(0, 0, 0, 0.6);
+      --shadow-soft: 0 20px 50px rgba(0, 0, 0, 0.75);
     }
 
     * { box-sizing: border-box; }
@@ -31,7 +30,9 @@
     body {
       margin: 0;
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
-      background: radial-gradient(circle at top, #111827 0%, #020617 55%, #000000 100%);
+      background:
+        radial-gradient(circle at top, rgba(56, 189, 248, 0.08), transparent 55%),
+        radial-gradient(circle at bottom, rgba(79, 70, 229, 0.2), #020617);
       color: var(--text-main);
       overflow: hidden;
     }
@@ -41,36 +42,44 @@
       inset: 0;
     }
 
+    /* --- Main control dock --- */
     #toolbar {
       position: absolute;
-      top: 14px;
+      bottom: 18px;
       left: 50%;
       transform: translateX(-50%);
       display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
+      flex-direction: column;
+      gap: 8px;
       z-index: 10;
-      padding: 10px;
+      padding: 10px 12px;
       border-radius: 18px;
-      background: linear-gradient(135deg, rgba(15, 23, 42, 0.94), rgba(15, 23, 42, 0.9));
+      background: linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(15, 23, 42, 0.92));
       box-shadow: var(--shadow-soft);
-      border: 1px solid rgba(148, 163, 184, 0.35);
-      backdrop-filter: blur(18px);
-      align-items: stretch;
-      max-width: min(1100px, 96vw);
+      border: 1px solid rgba(148, 163, 184, 0.5);
+      backdrop-filter: blur(22px) saturate(140%);
+      max-width: min(1150px, 96vw);
+    }
+
+    .toolbar-header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
     }
 
     .toolbar-title {
       font-weight: 600;
-      letter-spacing: 0.04em;
+      letter-spacing: 0.08em;
       font-size: 11px;
       text-transform: uppercase;
       color: var(--accent-strong);
-      display: flex;
+      display: inline-flex;
       align-items: center;
       gap: 6px;
-      padding: 0 6px;
-      margin-right: 6px;
+      padding: 2px 8px 2px 4px;
+      border-radius: 999px;
+      background: radial-gradient(circle at left, rgba(34, 197, 94, 0.16), transparent 55%);
     }
 
     .toolbar-title-dot {
@@ -78,18 +87,43 @@
       height: 8px;
       border-radius: 999px;
       background: radial-gradient(circle, #22c55e, #16a34a);
-      box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.3);
+      box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.35);
+    }
+
+    .toolbar-mode-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      color: var(--text-muted);
+    }
+
+    .toolbar-mode-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      background: #22c55e;
+    }
+
+    .toolbar-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 8px;
+      margin-top: 4px;
     }
 
     .card {
       display: flex;
       flex-direction: column;
       gap: 6px;
-      padding: 8px 12px;
+      padding: 8px 10px;
       border-radius: var(--radius-md);
-      background: radial-gradient(circle at top left, rgba(15, 23, 42, 0.9), rgba(15, 23, 42, 0.92));
+      background: radial-gradient(circle at top left, rgba(15, 23, 42, 0.95), rgba(15, 23, 42, 0.98));
       border: 1px solid rgba(31, 41, 55, 0.9);
-      min-width: 220px;
     }
 
     .card-header {
@@ -164,29 +198,31 @@
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      transition: background 0.15s ease, border-color 0.15s ease, transform 0.05s ease;
+      transition: background 0.15s ease, border-color 0.15s ease, transform 0.05s ease, box-shadow 0.15s ease;
       white-space: nowrap;
     }
 
     button.primary {
-      background: linear-gradient(135deg, var(--accent), #6366f1);
+      background: radial-gradient(circle at top left, #6366f1, #4f46e5);
       border-color: rgba(191, 219, 254, 0.9);
+      box-shadow: 0 0 0 1px rgba(129, 140, 248, 0.45);
     }
 
     button.primary:hover:not(:disabled) {
-      background: linear-gradient(135deg, #6366f1, #4f46e5);
+      background: radial-gradient(circle at top left, #4f46e5, #4338ca);
     }
 
     button:hover:not(:disabled) {
       background: rgba(15, 23, 42, 1);
-      border-color: rgba(148, 163, 184, 0.8);
+      border-color: rgba(148, 163, 184, 0.9);
       transform: translateY(-1px);
     }
 
     button:disabled {
-      opacity: 0.4;
+      opacity: 0.45;
       cursor: default;
       transform: none;
+      box-shadow: none;
     }
 
     label.inline {
@@ -199,7 +235,7 @@
 
     .alt-input {
       width: 76px;
-      background: rgba(15, 23, 42, 0.95);
+      background: rgba(15, 23, 42, 0.98);
       border: 1px solid var(--border-subtle);
       color: var(--text-main);
       border-radius: 999px;
@@ -210,7 +246,7 @@
 
     .alt-input:focus {
       border-color: var(--accent-strong);
-      box-shadow: 0 0 0 1px rgba(129, 140, 248, 0.5);
+      box-shadow: 0 0 0 1px rgba(129, 140, 248, 0.6);
     }
 
     .color-input {
@@ -247,37 +283,10 @@
       color: var(--text-muted);
     }
 
-    #status-pill {
-      position: absolute;
-      left: 14px;
-      bottom: 14px;
-      z-index: 5;
-      padding: 6px 12px;
-      border-radius: var(--radius-lg);
-      background: rgba(15, 23, 42, 0.92);
-      border: 1px solid rgba(31, 41, 55, 0.9);
-      color: var(--text-muted);
-      font-size: 11px;
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      backdrop-filter: blur(10px);
-    }
-
-    #status-pill .status-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 999px;
-      background: #4b5563;
-    }
-
-    #status-pill .status-dot.live { background: #22c55e; }
-    #status-pill .status-dot.paused { background: #f97316; }
-
     #controlsToggle {
       position: absolute;
       top: 14px;
-      left: 14px;
+      right: 14px;
       z-index: 11;
       padding: 6px 10px;
       border-radius: var(--radius-lg);
@@ -299,14 +308,17 @@
 
     @media (max-width: 900px) {
       #toolbar {
-        top: 10px;
-        padding: 8px;
+        bottom: 10px;
+        padding: 8px 9px;
         border-radius: 16px;
       }
-      .card { min-width: 100%; }
+      .toolbar-grid {
+        grid-template-columns: 1fr;
+      }
       #controlsToggle {
-        top: 10px;
-        left: 10px;
+        top: auto;
+        bottom: 10px;
+        right: 10px;
       }
     }
 
@@ -331,114 +343,151 @@
   </button>
 
   <div id="toolbar">
-    <div class="toolbar-title">
-      <span class="toolbar-title-dot"></span>
-      <span>EuroScope Replay</span>
-    </div>
-
-    <!-- Replay card -->
-    <div class="card">
-      <div class="card-header">
-        <span>Replay</span>
-        <span class="label-pill" id="replayStatusLabel">Idle</span>
+    <div class="toolbar-header-row">
+      <div class="toolbar-title">
+        <span class="toolbar-title-dot"></span>
+        <span>EuroScope Replay</span>
       </div>
-      <div class="card-body">
-        <label for="fileInput" class="file-label">
-          <span class="file-label-icon">⬆</span>
-          <span>Load OBS log</span>
-          <span class="badge">.txt / .log</span>
-        </label>
-        <input type="file" id="fileInput" accept=".txt,.log" />
-
-        <button id="playPause" class="primary" disabled>
-          <span class="dot stopped" id="playPauseDot"></span>
-          <span id="playPauseText">Pause</span>
-        </button>
-
-        <label class="inline">
-          Speed
-          <input type="range" id="speedRange" min="0.25" max="16" step="0.25" value="4" />
-          <span class="speed-label" id="speedLabel">4x</span>
-        </label>
-
-        <!-- Timeline scrubber -->
-        <label class="inline" style="flex:1 1 100%; margin-top:2px;">
-          Timeline
-          <input type="range" id="timelineRange" min="0" max="0" step="1" value="0" disabled />
-          <span class="speed-label" id="timelineLabel">0 / 0</span>
-        </label>
+      <div class="toolbar-mode-pill">
+        <span class="toolbar-mode-dot"></span>
+        <span id="replayStatusLabel">Idle</span>
       </div>
     </div>
 
-    <!-- Filters -->
-    <div class="card">
-      <div class="card-header">
-        <span>Filters</span>
-        <span class="label-pill">Altitude</span>
+    <div class="toolbar-grid">
+      <!-- Replay card -->
+      <div class="card">
+        <div class="card-header">
+          <span>Replay</span>
+          <span class="label-pill">Playback</span>
+        </div>
+        <div class="card-body">
+          <label for="fileInput" class="file-label">
+            <span class="file-label-icon">⬆</span>
+            <span>Load Euroscope log</span>
+            <span class="badge">.txt / .log</span>
+          </label>
+          <input type="file" id="fileInput" accept=".txt,.log" />
+
+          <button id="playPause" class="primary" disabled>
+            <span class="dot stopped" id="playPauseDot"></span>
+            <span id="playPauseText">Pause</span>
+          </button>
+
+          <label class="inline">
+            Speed
+            <input type="range" id="speedRange" min="0.25" max="16" step="0.25" value="4" />
+            <span class="speed-label" id="speedLabel">4x</span>
+          </label>
+
+          <label class="inline" style="flex:1 1 100%; margin-top:2px;">
+            Timeline
+            <input type="range" id="timelineRange" min="0" max="0" step="1" value="0" disabled />
+            <span class="speed-label" id="timelineLabel">0 / 0</span>
+          </label>
+        </div>
       </div>
-      <div class="card-body">
-        <label class="inline">
-          Min (ft)
-          <input id="minAlt" class="alt-input" type="number" value="0" />
-        </label>
-        <label class="inline">
-          Max (ft)
-          <input id="maxAlt" class="alt-input" type="number" value="45000" />
-        </label>
-        <button id="applyAlt">Apply</button>
-        <span class="subtext">Filter aircraft and trails by actual altitude.</span>
+
+      <!-- Altitude filters -->
+      <div class="card">
+        <div class="card-header">
+          <span>Filters</span>
+          <span class="label-pill">Altitude</span>
+        </div>
+        <div class="card-body">
+          <label class="inline">
+            Min (ft)
+            <input id="minAlt" class="alt-input" type="number" value="0" />
+          </label>
+          <label class="inline">
+            Max (ft)
+            <input id="maxAlt" class="alt-input" type="number" value="45000" />
+          </label>
+          <button id="applyAlt">Apply</button>
+          <span class="subtext">Filter aircraft and trails by altitude.</span>
+        </div>
+      </div>
+
+      <!-- Universal view controls -->
+      <div class="card">
+        <div class="card-header">
+          <span>View</span>
+          <span class="label-pill">Global</span>
+        </div>
+        <div class="card-body">
+          <button id="toggleTheme">
+            🎨 <span id="toggleThemeText">Satellite map</span>
+          </button>
+          <span class="subtext" style="flex:1 1 100%;">Applies to both 2D &amp; 3D modes.</span>
+        </div>
+      </div>
+
+      <!-- Trails card (separate box) -->
+      <div class="card">
+        <div class="card-header">
+          <span>Trails</span>
+          <span class="label-pill">2D &amp; 3D</span>
+        </div>
+        <div class="card-body">
+          <label class="inline">
+            Length
+            <input id="trailLengthNm" class="alt-input" type="number" value="30" />
+            <span style="font-size:10px;color:var(--text-muted);margin-left:2px;">NM</span>
+          </label>
+          <button id="applyTrailLength">Set</button>
+
+          <button id="keepAllTrailsBtn">
+            ♾️ <span id="keepAllTrailsText">Keep all trails</span>
+          </button>
+
+          <label class="inline">
+            Colour
+            <input id="trailColor" type="color" value="#eab308" class="color-input" />
+          </label>
+
+          <span class="subtext">
+            Trail length &amp; colour apply to both 2D trails and 3D trails.
+          </span>
+        </div>
+      </div>
+
+      <!-- 2D view controls -->
+      <div class="card">
+        <div class="card-header">
+          <span>2D View</span>
+          <span class="label-pill">Icons &amp; trails</span>
+        </div>
+        <div class="card-body">
+          <button id="toggleTrails">
+            🧵 <span id="toggleTrailsText">Hide trails</span>
+          </button>
+
+          <button id="toggleHideIcons">
+            🚫✈️ <span id="toggleHideIconsText">Hide icons: off</span>
+          </button>
+
+          <span class="subtext">
+            2D mode: flat map with aircraft icons &amp; 2D trails.
+          </span>
+        </div>
+      </div>
+
+      <!-- 3D view controls -->
+      <div class="card">
+        <div class="card-header">
+          <span>3D View</span>
+          <span class="label-pill">Cones &amp; 3D trails</span>
+        </div>
+        <div class="card-body">
+          <button id="toggle3DView">
+            🗺 <span id="toggle3DViewText">3D mode</span>
+          </button>
+          <span class="subtext">
+            3D mode shows volumetric cones &amp; 3D trails. 2D icons/trails are hidden in 3D.
+          </span>
+        </div>
       </div>
     </div>
-
-    <!-- View / map controls -->
-    <div class="card">
-      <div class="card-header">
-        <span>View</span>
-        <span class="label-pill">Map &amp; trails</span>
-      </div>
-      <div class="card-body">
-        <button id="toggleTrails">
-          🧵 <span id="toggleTrailsText">Hide trails</span>
-        </button>
-
-        <button id="toggle3DView">
-          🗺 <span id="toggle3DViewText">3D mode</span>
-        </button>
-
-        <button id="toggleTheme">
-          🎨 <span id="toggleThemeText">Satellite map</span>
-        </button>
-
-        <button id="keepAllTrailsBtn">
-          ♾️ <span id="keepAllTrailsText">Keep all trails</span>
-        </button>
-
-        <!-- Hide icons toggle -->
-        <button id="toggleHideIcons">
-          🚫✈️ <span id="toggleHideIconsText">Hide icons: off</span>
-        </button>
-
-        <!-- Trail colour control -->
-        <label class="inline">
-          Trail colour
-          <input id="trailColor" type="color" value="#eab308" class="color-input" />
-        </label>
-
-        <label class="inline">
-          Trail length
-          <input id="trailLengthNm" class="alt-input" type="number" value="30" />
-          <span style="font-size:10px;color:var(--text-muted);margin-left:2px;">NM</span>
-        </label>
-        <button id="applyTrailLength">Set</button>
-
-        <span class="subtext">2D: icons + trails. 3D: cones + 3D trails.</span>
-      </div>
-    </div>
-  </div>
-
-  <div id="status-pill">
-    <span class="status-dot" id="statusDot"></span>
-    <span id="statusText">Waiting for file…</span>
   </div>
 
   <script>
@@ -533,13 +582,15 @@
 
     const MIN_POINT_SPACING_NM = 0.2;
     const DESPAWN_FRAMES = 250;
-    const TRAIL_FADE_STEP_NM = 0.5; // fade speed (NM) for all disappearing aircraft
+    const TRAIL_FADE_STEP_NM_GS0 = 0.01;   // slow fade for GS=0 timeouts
+    const TRAIL_FADE_STEP_NM_TIMEOUT = 0.01; // default fade for other despawns
+    const STOP_FRAMES_BEFORE_FADE = 250;  // GS=0 must persist this many frames
 
     let maxTrailHistoryNm = 30;
     let trailsVisible = true;
     let playbackSpeed = 4.0;
     let is3DView = true;    // 3D mode by default
-    let controlsVisible = true;
+    let controlsVisible = true; // "pinned" state
     let keepAllTrails = false;
     let hideIcons = false;
 
@@ -547,6 +598,9 @@
     let maxAlt = 45000;
     let mapInitializedOnce = false;
     let trailColor = '#eab308';
+
+    // GS=0 tracking: callsign -> frameIndex when it first hit GS=0
+    let stoppedSinceFrame = {};
 
     // Render throttling
     let needsRender = false;
@@ -627,8 +681,6 @@
     const minAltInput = document.getElementById('minAlt');
     const maxAltInput = document.getElementById('maxAlt');
     const applyAltBtn = document.getElementById('applyAlt');
-    const statusDot = document.getElementById('statusDot');
-    const statusText = document.getElementById('statusText');
     const replayStatusLabel = document.getElementById('replayStatusLabel');
     const toolbar = document.getElementById('toolbar');
     const controlsToggle = document.getElementById('controlsToggle');
@@ -640,21 +692,19 @@
     let isScrubbing = false;
 
     function setStatus(state, text) {
-      statusText.textContent = text;
-      statusDot.classList.remove('live', 'paused');
+      // Only update in-toolbar indicators now (no separate status pill)
       playPauseDot.classList.remove('paused', 'stopped');
 
       if (state === 'idle') {
         playPauseDot.classList.add('stopped');
         replayStatusLabel.textContent = 'Idle';
       } else if (state === 'playing') {
-        statusDot.classList.add('live');
         replayStatusLabel.textContent = 'Playing';
       } else if (state === 'paused') {
-        statusDot.classList.add('paused');
         playPauseDot.classList.add('paused');
         replayStatusLabel.textContent = 'Paused';
       }
+      // "text" is kept for future extension/logging, but not displayed.
     }
 
     function ftToMeters(ft) {
@@ -787,12 +837,13 @@
       }
     }
 
-    // Start fading a trail from the back
-    function startTrailFade(callsign) {
+    // Start fading a trail from the back, with reason (gs0 / timeout / other)
+    function startTrailFade(callsign, reason) {
       const trail = trailFeatures[callsign];
       if (!trail) return;
       trail.properties = trail.properties || {};
       trail.properties.fading = true;
+      trail.properties.fadeReason = reason || 'other';
     }
 
     function updateKeepAllTrailsButton() {
@@ -834,6 +885,7 @@
       aircraftFeatures = {};
       trailFeatures = {};
       aircraftLastSeen = {};
+      stoppedSinceFrame = {};
 
       if (threeLayer.scene) {
         threeLayer.aircraftObjects.forEach(mesh => {
@@ -854,7 +906,7 @@
 
     // 3D helpers: aircraft + trails
     function updateAircraftObjectForEvent(ev) {
-      if (!threeLayer.scene) return;
+      if (!threeLayer.scene || !is3DView) return;
 
       const { callsign, lat, lon, alt_ft, heading } = ev;
 
@@ -883,7 +935,7 @@
     }
 
     function updateTrailLineForCallsign(callsign) {
-      if (!threeLayer.scene) return;
+      if (!threeLayer.scene || !is3DView) return;
 
       const trail = trailFeatures[callsign];
       if (!trail) {
@@ -943,8 +995,30 @@
       line.material.needsUpdate = true;
 
       const alt_ft = (trail.properties && trail.properties.alt_ft) || 0;
-      const inAltRange = alt_ft >= minAlt && maxAlt >= alt_ft;
+      const inAltRange = alt_ft >= minAlt && alt_ft <= maxAlt;
       line.visible = is3DView && trailsVisible && inAltRange;
+    }
+
+    function rebuildAll3DGeometry() {
+      if (!threeLayer.scene || !is3DView) return;
+
+      // Rebuild aircraft meshes
+      for (const cs in aircraftFeatures) {
+        const f = aircraftFeatures[cs];
+        const ev = {
+          callsign: cs,
+          lat: f.geometry.coordinates[1],
+          lon: f.geometry.coordinates[0],
+          alt_ft: f.properties.alt_ft || 0,
+          heading: f.properties.heading || 0
+        };
+        updateAircraftObjectForEvent(ev);
+      }
+
+      // Rebuild 3D trails
+      for (const cs in trailFeatures) {
+        updateTrailLineForCallsign(cs);
+      }
     }
 
     function update3DVisibility() {
@@ -1031,13 +1105,19 @@
           let trail = trailFeatures[callsign];
 
           if (isStopped) {
-            // GS 0 -> fade the trail from the back
+            // GS=0: mark time we stopped, but don't fade yet
+            if (stoppedSinceFrame[callsign] == null) {
+              stoppedSinceFrame[callsign] = replayIndex;
+            }
             if (trail) {
               trail.properties.alt_ft = alt_ft;
-              startTrailFade(callsign);
             }
           } else {
-            // Moving: ensure trail exists
+            // Moving again: cancel any "stopped" tracking and fade flag
+            if (stoppedSinceFrame[callsign] != null) {
+              delete stoppedSinceFrame[callsign];
+            }
+
             if (!trail) {
               const icao = aircraftTypes[callsign] || '';
               const wakeCat = getWakeCategory(icao);
@@ -1096,14 +1176,26 @@
 
         aircraftLastSeen[callsign] = replayIndex;
 
-        // Update 3D discrete
-        updateAircraftObjectForEvent(ev);
-        updateTrailLineForCallsign(callsign);
+        // Update 3D discrete only if 3D view enabled (perf)
+        if (is3DView) {
+          updateAircraftObjectForEvent(ev);
+          updateTrailLineForCallsign(callsign);
+        }
       });
+
+      // After processing this frame, handle GS=0 timeout -> start slow fade
+      for (const cs in stoppedSinceFrame) {
+        const since = stoppedSinceFrame[cs];
+        if (since == null) continue;
+        if (replayIndex - since > STOP_FRAMES_BEFORE_FADE) {
+          startTrailFade(cs, 'gs0'); // slow GS0 fade
+          delete stoppedSinceFrame[cs];
+        }
+      }
 
       replayIndex++;
 
-      // Despawn and fade-on-timeout
+      // Despawn and fade-on-timeout (normal fade speed)
       for (const cs in aircraftFeatures) {
         const last = aircraftLastSeen[cs];
         if (last == null) continue;
@@ -1111,6 +1203,7 @@
         if (replayIndex - last > DESPAWN_FRAMES) {
           delete aircraftFeatures[cs];
           delete aircraftLastSeen[cs];
+          delete stoppedSinceFrame[cs];
 
           const mesh = threeLayer.aircraftObjects && threeLayer.aircraftObjects.get(cs);
           if (mesh && threeLayer.scene) {
@@ -1121,12 +1214,12 @@
           }
 
           if (!keepAllTrails) {
-            startTrailFade(cs);
+            startTrailFade(cs, 'timeout'); // normal timeout fade
           }
         }
       }
 
-      // Fade trails from the back
+      // Fade trails from the back (speed depends on fadeReason)
       if (!keepAllTrails) {
         for (const cs in trailFeatures) {
           const trail = trailFeatures[cs];
@@ -1135,11 +1228,14 @@
           const coords = trail.geometry && trail.geometry.coordinates;
           if (!coords || coords.length <= 1) {
             delete trailFeatures[cs];
-            updateTrailLineForCallsign(cs);
+            if (is3DView) updateTrailLineForCallsign(cs);
             continue;
           }
 
-          let remainingToRemove = TRAIL_FADE_STEP_NM;
+          const reason = trail.properties.fadeReason || 'other';
+          let remainingToRemove = (reason === 'gs0')
+            ? TRAIL_FADE_STEP_NM_GS0
+            : TRAIL_FADE_STEP_NM_TIMEOUT;
 
           while (remainingToRemove > 0 && coords.length > 1) {
             const segNm = distanceNm(
@@ -1163,7 +1259,7 @@
             delete trailFeatures[cs];
           }
 
-          updateTrailLineForCallsign(cs);
+          if (is3DView) updateTrailLineForCallsign(cs);
         }
       }
 
@@ -1199,6 +1295,7 @@
       }
       applyAltitudeFilter();
       updateTimelineUI();
+      rebuildAll3DGeometry();
       update3DVisibility();
       applyHideIconsVisualState();
     }
@@ -1241,8 +1338,6 @@
     }
 
     map.on('style.load', () => {
-      // No terrain -> flat 2D base map
-
       // Sky for nicer tilted look
       if (!map.getLayer('sky')) {
         map.addLayer({
@@ -1280,6 +1375,7 @@
         map.addLayer(threeLayer);
       }
 
+      rebuildAll3DGeometry();
       update3DVisibility();
 
       if (!mapInitializedOnce) {
@@ -1476,16 +1572,18 @@
           }
         }
 
-        // Smooth 3D aircraft + trail
-        const evFor3D = {
-          callsign: cs,
-          lat: newLat,
-          lon: newLon,
-          alt_ft: f.properties.alt_ft || 0,
-          heading: f.properties.heading || 0
-        };
-        updateAircraftObjectForEvent(evFor3D);
-        updateTrailLineForCallsign(cs);
+        if (is3DView) {
+          // Smooth 3D aircraft + trail only while 3D is active (perf)
+          const evFor3D = {
+            callsign: cs,
+            lat: newLat,
+            lon: newLon,
+            alt_ft: f.properties.alt_ft || 0,
+            heading: f.properties.heading || 0
+          };
+          updateAircraftObjectForEvent(evFor3D);
+          updateTrailLineForCallsign(cs);
+        }
       }
 
       needsRender = true;
@@ -1521,6 +1619,8 @@
 
       requestAnimationFrame(animate);
     }
+
+    // === UI handlers ===
 
     toggleTrailsBtn.addEventListener('click', () => {
       trailsVisible = !trailsVisible;
@@ -1612,7 +1712,7 @@
       trailColor = trailColorInput.value;
       updateTrailColor();
 
-      if (threeLayer && threeLayer.trailLines) {
+      if (threeLayer && threeLayer.trailLines && is3DView) {
         threeLayer.trailLines.forEach((line, cs) => {
           updateTrailLineForCallsign(cs);
         });
@@ -1628,6 +1728,10 @@
         bearing: is3DView ? -24 : 0,
         duration: 600
       });
+
+      if (is3DView) {
+        rebuildAll3DGeometry();
+      }
 
       applyHideIconsVisualState();
       update3DVisibility();
@@ -1655,7 +1759,7 @@
         controlsToggleIcon.style.background = '#22c55e';
       } else {
         toolbar.style.display = 'none';
-        controlsToggleText.textContent = 'Show controls';
+        controlsToggleText.textContent = 'Menu';
         controlsToggleIcon.style.background = '#9ca3af';
       }
     }
@@ -1665,6 +1769,9 @@
       updateControlsToggle();
     });
 
+    // (Hover-to-show behaviour removed as requested.)
+
+    // Lightweight scrubbing: only jump on release
     timelineRange.addEventListener('input', () => {
       if (timelineRange.disabled || !maxFrames) return;
       isScrubbing = true;
@@ -1672,18 +1779,22 @@
       playPauseText.textContent = 'Play';
       setStatus('paused', 'Scrubbing timeline…');
       const idx = parseInt(timelineRange.value, 10) || 0;
-      jumpToFrame(idx);
+      timelineLabel.textContent = `${idx} / ${maxFrames ? maxFrames - 1 : 0}`;
     });
 
     timelineRange.addEventListener('change', () => {
+      if (!maxFrames) return;
+      const idx = parseInt(timelineRange.value, 10) || 0;
+      jumpToFrame(idx);
       isScrubbing = false;
     });
 
-    function updateThemeButtonTextInitial() {
+    // Initial UI state
+    function initThemeLabel() {
       toggleThemeText.textContent = 'Satellite map';
     }
 
-    updateThemeButtonTextInitial();
+    initThemeLabel();
     updateControlsToggle();
     updateKeepAllTrailsButton();
     updateTimelineUI();
