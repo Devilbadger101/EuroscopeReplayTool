@@ -42,6 +42,14 @@
       inset: 0;
     }
 
+    /* Density overlay canvas */
+    #densityCanvas {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 5; /* above map, below UI */
+    }
+
     /* --- Main control dock --- */
     #toolbar {
       position: absolute;
@@ -357,6 +365,7 @@
 
 <body>
   <div id="map"></div>
+  <canvas id="densityCanvas"></canvas>
 
   <!-- Controls visibility toggle -->
   <button id="controlsToggle">
@@ -442,7 +451,9 @@
             <button id="btnViewSatellite" class="view-toggle">🛰 Satellite</button>
             <button id="btnViewUnlabeled" class="view-toggle">🗺 Dark unlabeled</button>
           </div>
-          <span class="subtext" style="flex:1 1 100%;">Applies to both 2D &amp; 3D modes.</span>
+          <button id="btnResetView">↺ Reset view</button>
+          <button id="btnToggleDensity">Traffic density: off</button>
+          <span class="subtext" style="flex:1 1 100%;">Density overlay accumulates all traffic over time. Will become laggy</span>
         </div>
       </div>
 
@@ -504,7 +515,7 @@
         </div>
         <div class="card-body">
           <button id="toggle3DView">
-            🗺 <span id="toggle3DViewText">3D mode</span>
+            🗺 <span id="toggle3DViewText">Enable 3D</span>
           </button>
           <span class="subtext">
             3D mode shows volumetric cones &amp; 3D trails. 2D icons/trails are hidden in 3D.
@@ -516,6 +527,14 @@
 
   <script>
     mapboxgl.accessToken = 'pk.eyJ1IjoiZGV2aWxiYWRnZXIxMDEiLCJhIjoiY21rMGF0YzRpMGl1NDNmc2lpMHFrcWwxcCJ9.yARs0JW8w1TOCFXRT-UGoQ';
+
+    // Initial view (for reset)
+    const INITIAL_VIEW = {
+      center: [-2.5, 53.0],
+      zoom: 6,
+      pitch: 0,
+      bearing: 0
+    };
 
     // Themes
     const THEME = {
@@ -531,11 +550,148 @@
     const map = new mapboxgl.Map({
       container: 'map',
       style: currentBaseStyleUrl,
-      center: [-2.5, 53.0],
-      zoom: 6,
-      pitch: 60,
-      bearing: -24,
+      center: INITIAL_VIEW.center,
+      zoom: INITIAL_VIEW.zoom,
+      pitch: INITIAL_VIEW.pitch,
+      bearing: INITIAL_VIEW.bearing,
       antialias: true
+    });
+
+    // Density canvas
+    const densityCanvas = document.getElementById('densityCanvas');
+    const densityCtx = densityCanvas.getContext('2d');
+    let densityEnabled = false;
+    // Array of {from:[lon,lat], to:[lon,lat], alt_ft}
+    let densitySegments = [];
+
+    // Density performance tuning
+    const MAX_DENSITY_SEGMENTS = 50000;     // cap total heat-trail segments
+    const DENSITY_ALT_BUCKETS = 64;         // quantization for color caching
+    const DENSITY_COLOR_CACHE = {};         // bucket -> rgba string
+    let pendingDensityRedraw = false;       // throttle map move redraws
+    let pendingResizeRedraw = false;        // throttle resize redraws
+
+    function resizeDensityCanvas() {
+      const rect = map.getContainer().getBoundingClientRect();
+      // Cap DPR for this overlay – 1.5 is usually enough for a glow
+      const dpr = Math.min(1.5, window.devicePixelRatio || 1);
+
+      densityCanvas.width = rect.width * dpr;
+      densityCanvas.height = rect.height * dpr;
+      densityCanvas.style.width = rect.width + 'px';
+      densityCanvas.style.height = rect.height + 'px';
+      densityCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      densityCtx.globalCompositeOperation = 'lighter';
+      densityCtx.lineCap = 'round';
+      densityCtx.lineJoin = 'round';
+    }
+
+    function clearDensityCanvas() {
+      const rect = map.getContainer().getBoundingClientRect();
+      densityCtx.clearRect(0, 0, rect.width, rect.height);
+    }
+
+    // Map altitude to a neon-ish colour (cached by bucket)
+    function densityColorForAlt(alt_ft) {
+      const a = Math.max(0, Math.min(1, alt_ft / 40000));
+      const bucket = Math.round(a * (DENSITY_ALT_BUCKETS - 1));
+
+      if (DENSITY_COLOR_CACHE[bucket]) {
+        return DENSITY_COLOR_CACHE[bucket];
+      }
+
+      const tNorm = bucket / (DENSITY_ALT_BUCKETS - 1);
+      let r, g, b;
+
+      if (tNorm < 0.25) {
+        // blue -> cyan
+        const t = tNorm / 0.25;
+        r = 0;
+        g = Math.round(128 + 127 * t);
+        b = 255;
+      } else if (tNorm < 0.5) {
+        // cyan -> green
+        const t = (tNorm - 0.25) / 0.25;
+        r = 0;
+        g = 255;
+        b = Math.round(255 - 255 * t);
+      } else if (tNorm < 0.75) {
+        // green -> yellow
+        const t = (tNorm - 0.5) / 0.25;
+        r = Math.round(255 * t);
+        g = 255;
+        b = 0;
+      } else {
+        // yellow -> orange/red
+        const t = (tNorm - 0.75) / 0.25;
+        r = 255;
+        g = Math.round(255 - 155 * t);
+        b = 0;
+      }
+
+      const color = `rgba(${r},${g},${b},0.08)`; // fixed alpha
+      DENSITY_COLOR_CACHE[bucket] = color;
+      return color;
+    }
+
+    function drawDensitySegment(from, to, alt_ft) {
+      if (!densityEnabled) return;
+      const p1 = map.project(from);
+      const p2 = map.project(to);
+      densityCtx.beginPath();
+      densityCtx.moveTo(p1.x, p1.y);
+      densityCtx.lineTo(p2.x, p2.y);
+      densityCtx.strokeStyle = densityColorForAlt(alt_ft || 0);
+      densityCtx.lineWidth = 1.2;
+      densityCtx.stroke();
+    }
+
+    function addDensitySegment(lastCoord, newCoord, alt_ft) {
+      // lastCoord/newCoord are [lon,lat,alt_m]
+      if (!densityEnabled) return;
+      if (!lastCoord || !newCoord) return;
+      const from = [lastCoord[0], lastCoord[1]];
+      const to = [newCoord[0], newCoord[1]];
+      densitySegments.push({ from, to, alt_ft: alt_ft || 0 });
+
+      // Cap stored segments to avoid unbounded growth
+      if (densitySegments.length > MAX_DENSITY_SEGMENTS) {
+        densitySegments.splice(0, densitySegments.length - MAX_DENSITY_SEGMENTS);
+      }
+
+      // Draw only the newly added segment
+      drawDensitySegment(from, to, alt_ft);
+    }
+
+    function redrawAllDensity() {
+      if (!densityEnabled) return;
+      clearDensityCanvas();
+      for (const seg of densitySegments) {
+        drawDensitySegment(seg.from, seg.to, seg.alt_ft);
+      }
+    }
+
+    window.addEventListener('resize', () => {
+      if (!densityEnabled) return;
+      if (pendingResizeRedraw) return;
+
+      pendingResizeRedraw = true;
+      requestAnimationFrame(() => {
+        resizeDensityCanvas();
+        redrawAllDensity();
+        pendingResizeRedraw = false;
+      });
+    });
+
+    map.on('move', () => {
+      if (!densityEnabled) return;
+      if (pendingDensityRedraw) return;
+
+      pendingDensityRedraw = true;
+      requestAnimationFrame(() => {
+        redrawAllDensity();
+        pendingDensityRedraw = false;
+      });
     });
 
     // === Three.js volumetric radar layer ===
@@ -621,7 +777,7 @@
     let maxTrailHistoryNm = 30;
     let trailsVisible = true;
     let playbackSpeed = 4.0;
-    let is3DView = true;    // 3D mode by default
+    let is3DView = false;   // 2D mode by default
     let controlsVisible = true;
     let keepAllTrails = false;
     let hideIcons = false;
@@ -764,6 +920,8 @@
     const btnViewDark = document.getElementById('btnViewDark');
     const btnViewSatellite = document.getElementById('btnViewSatellite');
     const btnViewUnlabeled = document.getElementById('btnViewUnlabeled');
+    const btnResetView = document.getElementById('btnResetView');
+    const btnToggleDensity = document.getElementById('btnToggleDensity');
     let isScrubbing = false;
 
     function setStatus(state, text) {
@@ -782,7 +940,6 @@
           replayStatusLabel.textContent = 'Paused';
           break;
       }
-      // text kept for optional future UX/logging
     }
 
     function ftToMeters(ft) {
@@ -919,7 +1076,7 @@
     }
 
     function updateKeepAllTrailsButton() {
-      keepAllTrailsText.textContent = keepAllTrails ? 'Limit trails' : 'Keep all trails';
+      keepAllTrailsText.textContent = keepAllTrails ? 'Keep all trails (ON)' : 'Keep all trails';
     }
 
     // 2D overlays visibility (2D mode only)
@@ -958,6 +1115,8 @@
       trailFeatures = {};
       aircraftLastSeen = {};
       stoppedSinceFrame = {};
+      densitySegments = [];
+      clearDensityCanvas();
 
       if (threeLayer.scene) {
         threeLayer.aircraftObjects.forEach(mesh => {
@@ -1215,9 +1374,14 @@
                 coords.push(newCoord);
               } else {
                 const lastCoord = coords[coords.length - 1];
-                const stepDist = distanceNm(lastCoord[1], lastCoord[0], newCoord[1], newCoord[0]);
+                const stepDist = distanceNm(
+                  lastCoord[1], lastCoord[0],
+                  newCoord[1], newCoord[0]
+                );
                 if (stepDist >= MIN_POINT_SPACING_NM) {
                   coords.push(newCoord);
+                  // add to density overlay (all traffic, no altitude filter)
+                  addDensitySegment(lastCoord, newCoord, alt_ft);
                 }
               }
 
@@ -1338,7 +1502,7 @@
       needsRender = true;
     }
 
-    // Jump to a specific frame
+    // Jump to a specific frame (rebuilds everything)
     function jumpToFrame(targetIndex) {
       if (!maxFrames) return;
       targetIndex = Math.max(0, Math.min(maxFrames - 1, targetIndex));
@@ -1357,6 +1521,7 @@
       rebuildAll3DGeometry();
       update3DVisibility();
       applyHideIconsVisualState();
+      redrawAllDensity();
     }
 
     // 3D buildings on flat 2D map
@@ -1466,8 +1631,13 @@
       }
 
       if (!mapInitializedOnce) {
+        resizeDensityCanvas();
         setStatus(REPLAY_STATE.IDLE, 'Ready. Load an OBS log to begin.');
         mapInitializedOnce = true;
+      } else {
+        // style reload -> need to reproject density
+        resizeDensityCanvas();
+        redrawAllDensity();
       }
 
       if (animationRunning && !isPaused) {
@@ -1627,7 +1797,7 @@
       const baseAlpha = 0.01;
       const smoothAlpha = Math.min(0.7, baseAlpha * playbackSpeed);
 
-      // Smooth 2D + 3D positions
+      // Smooth 2D + 3D positions (unchanged)
       for (const cs in aircraftFeatures) {
         const f = aircraftFeatures[cs];
         const coords = f.geometry.coordinates;
@@ -1678,8 +1848,7 @@
       if (needsRender && now - lastRenderTime >= RENDER_INTERVAL_MS) {
         ensureReplayLayers();
         updateMapSources();
-        applyAltitudeFilter();
-        updateTimelineUI();
+        updateTimelineUI(); // still update timeline label
 
         lastRenderTime = now;
         needsRender = false;
@@ -1723,6 +1892,32 @@
     btnViewDark.addEventListener('click', () => setTheme(THEME.DARK));
     btnViewSatellite.addEventListener('click', () => setTheme(THEME.SATELLITE));
     btnViewUnlabeled.addEventListener('click', () => setTheme(THEME.UNLABELED));
+
+    // === View reset ===
+    function resetView() {
+      map.easeTo({
+        center: INITIAL_VIEW.center,
+        zoom: INITIAL_VIEW.zoom,
+        pitch: INITIAL_VIEW.pitch,
+        bearing: INITIAL_VIEW.bearing,
+        duration: 600
+      });
+    }
+
+    btnResetView.addEventListener('click', resetView);
+
+    // === Density toggle ===
+    btnToggleDensity.addEventListener('click', () => {
+      densityEnabled = !densityEnabled;
+      btnToggleDensity.textContent = densityEnabled
+        ? '🌈 Traffic density: on'
+        : '🌈 Traffic density: off';
+      densityCanvas.style.display = densityEnabled ? 'block' : 'none';
+      if (densityEnabled) {
+        resizeDensityCanvas();
+        redrawAllDensity();
+      }
+    });
 
     // === UI handlers ===
 
@@ -1825,11 +2020,11 @@
 
     toggle3DViewBtn.addEventListener('click', () => {
       is3DView = !is3DView;
-      toggle3DViewText.textContent = is3DView ? '3D mode' : '2D mode';
+      toggle3DViewText.textContent = is3DView ? 'Disable 3D' : 'Enable 3D';
 
       map.easeTo({
-        pitch: is3DView ? 60 : 0,
-        bearing: is3DView ? -24 : 0,
+        pitch: is3DView ? 60 : INITIAL_VIEW.pitch,
+        bearing: is3DView ? -24 : INITIAL_VIEW.bearing,
         duration: 600
       });
 
@@ -1881,6 +2076,8 @@
     updateControlsToggle();
     updateKeepAllTrailsButton();
     updateTimelineUI();
+    toggle3DViewText.textContent = 'Enable 3D';
+    densityCanvas.style.display = 'none';
   </script>
 </body>
 </html>
